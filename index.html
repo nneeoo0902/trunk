@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="旅行カバンに荷物を詰めて世界一周するパズルゲーム">
+<meta property="og:title" content="トランク詰め">
+<meta property="og:description" content="旅行カバンに荷物を詰めて世界一周するパズルゲーム">
+<style>html,body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}</style>
+<title>トランク詰め</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;800&display=swap">
+<style>
+/* Layout: one-screen game. Destination scenery behind, a mustard hard-shell suitcase in the middle, illustrated item tray on the ground band. Single bright theme by choice; scenery colors swap per destination. */
+:root{
+  --sky1:#7fdcf0; --sky2:#27b5d6; --ground:#f3dfa8;
+  --shell:#f2b632; --shell-dark:#c98a12; --lining:#1f2d55; --stitch:rgba(255,255,255,.13);
+  --ink:#14213d; --paper:#ffffff; --ok:#3ddc84; --bad:#ff4d4d;
+  --display:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --body:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Noto Sans JP",sans-serif;
+  --sticker:drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 3px 2px rgba(20,33,61,.35));
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 70%,var(--ground) 70%);color:var(--ink);font-family:var(--body);overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;transition:background .6s}
+.scenery{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.scenery span{position:absolute;line-height:1;opacity:.35}
+.scenery .m1{font-size:min(46vw,260px);right:-6%;top:calc(70% - min(40vw,226px))}
+.scenery .m2{font-size:min(20vw,110px);left:-3%;top:12%}
+.app{position:relative;height:100%;display:flex;flex-direction:column;gap:8px;max-width:560px;margin:0 auto;box-sizing:border-box;padding-block:10px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{display:flex;align-items:center;gap:8px}
+.logo{font-family:var(--display);font-size:20px;color:var(--paper);text-shadow:0 2px 0 var(--ink);margin:0;flex:1;white-space:nowrap}
+.chip{font-weight:800;font-size:13px;background:var(--paper);border-radius:999px;padding:4px 10px;font-variant-numeric:tabular-nums;box-shadow:0 2px 0 var(--ink);white-space:nowrap}
+.timer{height:10px;background:rgba(20,33,61,.25);border-radius:999px;overflow:hidden}
+.timer i{display:block;height:100%;width:100%;background:var(--paper);border-radius:999px;transform-origin:left}
+.timer.low i{background:var(--bad)}
+.stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+.case{position:relative;padding-top:26px}
+.handle{position:absolute;top:0;left:50%;transform:translateX(-50%);width:34%;height:34px;border:8px solid var(--ink);border-bottom:none;border-radius:16px 16px 0 0;box-sizing:border-box}
+.tag{position:absolute;top:6px;left:calc(33% - 74px);background:var(--paper);border:2px solid var(--ink);border-radius:6px 12px 12px 6px;padding:2px 8px 2px 14px;font:800 12px var(--body);transform:rotate(-7deg);transform-origin:right;white-space:nowrap;z-index:2}
+.tag::before{content:"";position:absolute;left:4px;top:50%;width:5px;height:5px;margin-top:-3px;border-radius:50%;border:2px solid var(--ink)}
+.shell{position:relative;background:var(--shell);border-radius:20px;padding:12px;box-shadow:0 6px 0 var(--shell-dark),0 14px 30px rgba(20,33,61,.3);border:3px solid var(--ink)}
+.shell::before,.shell::after{content:"";position:absolute;top:-9px;width:22px;height:12px;background:var(--ink);border-radius:4px 4px 0 0}
+.shell::before{left:22%}.shell::after{right:22%}
+.trunk{position:relative;display:grid;background:var(--lining);border-radius:10px;overflow:hidden;touch-action:none;cursor:crosshair}
+.cell{width:var(--cell);height:var(--cell);box-sizing:border-box;border:1px dashed var(--stitch)}
+.cell.p{border:none;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.22) 0 4px,transparent 4px 10px)}
+.cell.g-ok{background:color-mix(in srgb,var(--ok) 45%,transparent)!important}
+.cell.g-bad{background:color-mix(in srgb,var(--bad) 50%,transparent)!important}
+.art{position:absolute;inset:0;pointer-events:none}
+.art span{position:absolute;line-height:1;transform:translate(-50%,-50%);filter:var(--sticker)}
+.art span.pop{animation:pop .28s cubic-bezier(.3,1.6,.6,1)}
+.art span.ghost{opacity:.6;filter:none}
+@keyframes pop{0%{transform:translate(-50%,-50%) scale(.4)}100%{transform:translate(-50%,-50%) scale(1)}}
+.lid{position:absolute;inset:0;border-radius:20px;background:var(--shell);border:3px solid var(--ink);transform-origin:top;transform:perspective(600px) rotateX(-92deg);opacity:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.lid b{font-family:var(--display);font-weight:400;font-size:clamp(28px,10vw,48px);color:var(--paper);text-shadow:0 3px 0 var(--ink);transform:rotate(-8deg)}
+.lid.close{animation:lid .5s cubic-bezier(.5,0,.6,1.4) forwards}
+@keyframes lid{0%{opacity:1;transform:perspective(600px) rotateX(-92deg)}100%{opacity:1;transform:perspective(600px) rotateX(0)}}
+.shell.thud{animation:thud .25s .45s}
+@keyframes thud{50%{transform:translateY(5px) scaleY(.97)}}
+.hint{text-align:center;font-size:12px;font-weight:800;color:var(--ink);margin:0}
+.dock{display:flex;gap:10px;align-items:stretch}
+.tray{flex:1;min-width:0;display:flex;gap:8px;overflow-x:auto;padding:6px 2px 8px;scrollbar-width:thin}
+.item{flex:none;min-width:76px;background:var(--paper);border:3px solid transparent;border-radius:16px;padding:6px 8px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;font:inherit;color:var(--ink);box-shadow:0 3px 0 rgba(20,33,61,.35)}
+.item.sel{border-color:var(--ink);transform:translateY(-4px)}
+.item .em{font-size:38px;line-height:1.05;filter:var(--sticker)}
+.item small{font-size:11px;font-weight:800;white-space:nowrap}
+.item:focus-visible,.btn:focus-visible,.rot:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.mini{display:grid;gap:1px}
+.mini span{width:8px;height:8px;border-radius:2px}
+.rot{flex:none;width:66px;border:none;border-radius:16px;background:var(--ink);color:var(--paper);font:800 13px var(--body);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.rot svg{width:26px;height:26px}
+.ov{position:fixed;inset:0;background:rgba(20,33,61,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.card{background:var(--paper);border:3px solid var(--ink);border-radius:24px;padding:24px 22px;max-width:340px;width:100%;box-sizing:border-box;text-align:center;box-shadow:0 8px 0 var(--ink);display:flex;flex-direction:column;gap:12px}
+.card h2{font-family:var(--display);font-weight:400;font-size:32px;margin:0;line-height:1.15;text-wrap:balance}
+.card p{margin:0;font-size:14px;line-height:1.7}
+.card ol{margin:0;padding-left:1.4em;text-align:left;font-size:14px;line-height:1.8}
+.big{font-family:var(--display);font-size:44px;font-variant-numeric:tabular-nums;line-height:1}
+.route{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.route span{font-size:12px;font-weight:800;border:2px solid var(--ink);border-radius:999px;padding:3px 9px;display:flex;gap:4px;align-items:center}
+.route span.no{opacity:.3;border-style:dashed}
+.btn{display:block;border:3px solid var(--ink);border-radius:999px;padding:12px;font:800 16px var(--body);background:var(--shell);color:var(--ink);cursor:pointer;text-decoration:none;box-shadow:0 4px 0 var(--ink)}
+.btn.x{background:var(--ink);color:var(--paper)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.fly{position:fixed;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(20,33,61,.6);color:var(--paper);text-align:center}
+.fly .lm{font-size:96px;line-height:1;filter:var(--sticker);animation:pop .4s cubic-bezier(.3,1.6,.6,1)}
+.fly small{font-weight:800;font-size:14px;letter-spacing:.1em}
+.fly strong{font-family:var(--display);font-weight:400;font-size:40px;text-shadow:0 3px 0 var(--ink)}
+.plane{font-size:34px;animation:plane 1.4s linear}
+@keyframes plane{0%{transform:translateX(-45vw) rotate(10deg)}100%{transform:translateX(45vw) rotate(-5deg)}}
+@media (prefers-reduced-motion:reduce){.lid.close{animation-duration:.01s}.shell.thud,.plane,.art span.pop{animation:none}}
+</style>
+
+</head>
+<body>
+<div class="scenery" aria-hidden="true"><span class="m1" id="m1">🏝️</span><span class="m2" id="m2">☀️</span></div>
+<div class="app">
+  <header>
+    <h1 class="logo">トランク詰め</h1>
+    <span class="chip" id="stg">STAGE 1</span>
+    <span class="chip" id="scr">0点</span>
+  </header>
+  <div class="timer" id="timer"><i id="bar"></i></div>
+  <div class="stage" id="stageArea">
+    <div class="case">
+      <div class="handle"></div>
+      <div class="tag" id="tag">宮古島行き</div>
+      <div class="shell" id="shell">
+        <div class="trunk" id="trunk" aria-label="トランクの中"></div>
+        <div class="lid" id="lid"><b>パタン！</b></div>
+      </div>
+    </div>
+  </div>
+  <p class="hint" id="hint">荷物を選んでトランクをタップ／なぞって置く</p>
+  <div class="dock">
+    <div class="tray" id="tray"></div>
+    <button class="rot" id="rot" aria-label="回転">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>回転
+    </button>
+  </div>
+</div>
+
+<div class="fly" id="fly" hidden>
+  <div class="plane">✈️</div>
+  <small>次の行き先</small>
+  <div class="lm" id="flyMark">🏔️</div>
+  <strong id="flyName">北海道</strong>
+</div>
+
+<div class="ov" id="startOv">
+  <div class="card">
+    <h2>トランク詰め</h2>
+    <p>行き先ごとの荷物を旅行カバンに全部詰めて、時間内にフタを閉めよう。宮古島から全14か所をめぐる世界一周の旅へ。</p>
+    <ol>
+      <li>下から荷物を選ぶ</li>
+      <li>トランクをタップ（なぞる）して置く</li>
+      <li>置いた荷物をタップすると戻せる</li>
+    </ol>
+    <button class="btn" id="startBtn">出発する</button>
+  </div>
+</div>
+
+<div class="ov" id="endOv" hidden>
+  <div class="card">
+    <h2 id="endTitle">時間切れ！</h2>
+    <p id="endStage">北海道で時間切れ</p>
+    <div class="route" id="route"></div>
+    <div class="big" id="endScore">0点</div>
+    <p id="endBest">ベスト 0点</p>
+    <a class="btn x" id="share" href="#" target="_blank" rel="noopener">結果をXでシェア</a>
+    <button class="btn" id="retry">もう一回</button>
+  </div>
+</div>
+
+<script>
+const DESTS=[
+  {name:"宮古島",mark:"🏝️",sub:"☀️",sky:["#7fdcf0","#27b5d6"],ground:"#f3dfa8",items:{
+    1:[["サングラス","🕶️"],["日焼け止め","🧴"],["貝がら","🐚"],["星の砂","⭐"]],
+    2:[["ビーチサンダル","🩴"],["麦わら帽子","👒"],["ラッシュガード","🩱"],["アイス","🍦"]],
+    3:[["水着","👙"],["防水カメラ","📷"],["マンゴー","🥭"],["ヤシガニのぬいぐるみ","🦀"]],
+    4:[["浮き輪","🛟"],["シュノーケル","🤿"],["熱帯魚のぬいぐるみ","🐠"],["ハイビスカス","🌺"]],
+    5:[["パラソル","⛱️"],["泡盛","🍶"],["パイナップル","🍍"],["ウミガメのぬいぐるみ","🐢"]]}},
+  {name:"北海道",mark:"🏔️",sub:"❄️",sky:["#dcecf8","#93bfe2"],ground:"#f4f8fb",items:{
+    1:[["手袋","🧤"],["牛乳","🥛"],["とうもろこし","🌽"],["じゃがいも","🥔"]],
+    2:[["マフラー","🧣"],["チーズ","🧀"],["チョコ","🍫"],["ソフトクリーム","🍦"]],
+    3:[["ブーツ","🥾"],["カニ","🦀"],["メロン","🍈"],["キタキツネのぬいぐるみ","🦊"]],
+    4:[["コート","🧥"],["ラーメン","🍜"],["雪だるま","⛄"],["牛のぬいぐるみ","🐄"]],
+    5:[["スキー板","🎿"],["クマの置き物","🐻"],["スノーボード","🏂"],["エゾシカの置き物","🦌"]]}},
+  {name:"京都",mark:"⛩️",sub:"🍁",sky:["#f9d3a5","#e07a5f"],ground:"#e9d2b4",items:{
+    1:[["抹茶","🍵"],["だんご","🍡"],["お守り","🧧"],["おにぎり","🍙"]],
+    2:[["扇子","🪭"],["風鈴","🎐"],["お箸","🥢"],["花札","🎴"]],
+    3:[["ちょうちん","🏮"],["お弁当","🍱"],["おせんべい","🍘"],["もみじの栞","🍁"]],
+    4:[["着物","👘"],["ひな人形","🎎"],["抹茶パフェ","🍨"],["お城のプラモ","🏯"]],
+    5:[["日本酒","🍶"],["こけし","🪆"],["おみやげ","🎁"],["鳥居の置き物","⛩️"]]}},
+  {name:"大阪",mark:"🐙",sub:"🎡",sky:["#ffc59a","#f26b5b"],ground:"#f6dcc0",items:{
+    1:[["あめちゃん","🍬"],["串カツ","🍢"],["たこ焼きキーホルダー","🐙"],["プリン","🍮"]],
+    2:[["ビール","🍺"],["カレー","🍛"],["テーマパークのチケット","🎫"],["ヒョウ柄の帽子","🧢"]],
+    3:[["餃子","🥟"],["トラのぬいぐるみ","🐯"],["お笑いのマイク","🎤"],["お好み焼き","🥞"]],
+    4:[["観覧車のおもちゃ","🎡"],["ジンベエザメのぬいぐるみ","🦈"],["ヒョウ柄の服","👕"],["ド派手な人形","🤡"]],
+    5:[["大阪城のプラモ","🏯"],["豚まん","🥟"],["おみやげ袋","🛍️"],["カニの看板","🦀"]]}},
+  {name:"ソウル",mark:"🌶️",sub:"🎤",sky:["#cfe3f5","#7aa3d6"],ground:"#efe6dc",items:{
+    1:[["唐辛子","🌶️"],["リップ","💄"],["パック","🧴"],["キャンディ","🍭"]],
+    2:[["ステンレス箸","🥢"],["ヘッドホン","🎧"],["トッポッキ","🍢"],["靴下","🧦"]],
+    3:[["フライドチキン","🍗"],["推しのCD","💿"],["リボン","🎀"],["チェキ","📸"]],
+    4:[["チゲ鍋","🍲"],["ワンピース","👗"],["コスメの袋","🛍️"],["ペンライト","🔦"]],
+    5:[["カラオケマイク","🎤"],["くまのぬいぐるみ","🧸"],["おみやげ","🎁"],["韓服","👘"]]}},
+  {name:"台湾",mark:"🧋",sub:"🏮",sky:["#ffe0a8","#f2a25c"],ground:"#f7e7c6",items:{
+    1:[["タピオカ","🧋"],["烏龍茶","🍵"],["小籠包","🥟"],["パイナップルケーキ","🍍"]],
+    2:[["牛肉麺","🍜"],["マンゴーかき氷","🍧"],["ランタン","🏮"],["お箸","🥢"]],
+    3:[["駅弁","🍱"],["パンダのぬいぐるみ","🐼"],["マンゴー","🥭"],["扇子","🪭"]],
+    4:[["火鍋","🍲"],["麻雀セット","🀄"],["ジャケット","🧥"],["夜市の袋","🛍️"]],
+    5:[["天燈","🎈"],["おみやげ","🎁"],["傘","☂️"],["自転車のおもちゃ","🚲"]]}},
+  {name:"バンコク",mark:"🐘",sub:"🛕",sky:["#ffd27a","#f08a4b"],ground:"#f3e0b0",items:{
+    1:[["バナナ","🍌"],["唐辛子","🌶️"],["ココナッツ","🥥"],["お香","🪔"]],
+    2:[["タイパンツ","🩳"],["トムヤムクン","🍲"],["マンゴー","🥭"],["サンダル","🩴"]],
+    3:[["ゾウのぬいぐるみ","🐘"],["グリーンカレー","🍛"],["パイナップル","🍍"],["ハーブの束","🌿"]],
+    4:[["寺院の置き物","🛕"],["Tシャツ","👕"],["シルクの布","🧣"],["ドリアン","🍈"]],
+    5:[["トゥクトゥクの模型","🛺"],["屋台の袋","🛍️"],["蘭の花","🌸"],["おみやげ","🎁"]]}},
+  {name:"ハワイ",mark:"🌺",sub:"🌴",sky:["#ffd9a0","#ff8fa3"],ground:"#ffe8c2",items:{
+    1:[["ココナッツ","🥥"],["マカダミアチョコ","🍫"],["ハイビスカス","🌺"],["日焼け止め","🧴"]],
+    2:[["ハーフパンツ","🩳"],["キャップ","🧢"],["かき氷","🍧"],["サングラス","🕶️"]],
+    3:[["ウクレレ","🎸"],["ホヌ","🐢"],["パイナップル","🍍"],["ロコモコ","🍛"]],
+    4:[["アロハシャツ","👕"],["パンケーキ","🥞"],["サーフボード","🏄"],["フラのスカート","🌿"]],
+    5:[["ヤシの木グッズ","🌴"],["イルカのぬいぐるみ","🐬"],["おみやげ","🎁"],["ビーチパラソル","⛱️"]]}},
+  {name:"シドニー",mark:"🦘",sub:"🐨",sky:["#9fd8f5","#3c9ad6"],ground:"#f2d9a6",items:{
+    1:[["ハチミツ","🍯"],["キウイ","🥝"],["日焼け止め","🧴"],["サングラス","🕶️"]],
+    2:[["ブーメラン","🪃"],["キャップ","🧢"],["ビーチサンダル","🩴"],["ミートパイ","🥧"]],
+    3:[["コアラのぬいぐるみ","🐨"],["カンガルーのぬいぐるみ","🦘"],["ステーキ","🥩"],["ペンギンのぬいぐるみ","🐧"]],
+    4:[["サーフボード","🏄"],["BBQセット","🍖"],["ワニのおもちゃ","🐊"],["パーカー","🧥"]],
+    5:[["サメのぬいぐるみ","🦈"],["スケボー","🛹"],["オペラハウスの模型","🎭"],["おみやげ","🎁"]]}},
+  {name:"カイロ",mark:"🐫",sub:"🏜️",sky:["#ffe2a0","#f0b25a"],ground:"#e8c88a",items:{
+    1:[["スカラベのお守り","🪲"],["コンパス","🧭"],["ハチミツ","🍯"],["懐中電灯","🔦"]],
+    2:[["スカーフ","🧣"],["地図","🗺️"],["デーツ","🌰"],["サングラス","🕶️"]],
+    3:[["ラクダのぬいぐるみ","🐫"],["つぼ","🏺"],["ランプ","🪔"],["ヘビのおもちゃ","🐍"]],
+    4:[["テント","⛺"],["石像のレプリカ","🗿"],["ネコの置き物","🐈"],["じゅうたん","🧶"]],
+    5:[["ピラミッドの置き物","🔺"],["おみやげ","🎁"],["水筒","🧉"],["カメラ","📷"]]}},
+  {name:"ローマ",mark:"🍕",sub:"🏛️",sky:["#ffd9b0","#e8946a"],ground:"#efdcc4",items:{
+    1:[["レモン","🍋"],["オリーブ","🫒"],["エスプレッソ","☕"],["キャンディ","🍬"]],
+    2:[["チーズ","🧀"],["ワイン","🍷"],["ジェラート","🍦"],["トマト","🍅"]],
+    3:[["ピザ","🍕"],["パスタ","🍝"],["革靴","👞"],["オペラグラス","🎭"]],
+    4:[["ベスパの模型","🛵"],["絵の具","🎨"],["絵画","🖼️"],["革のバッグ","👜"]],
+    5:[["神殿の模型","🏛️"],["コロッセオのパズル","🧩"],["おみやげ","🎁"],["サッカーボール","⚽"]]}},
+  {name:"パリ",mark:"🥐",sub:"🎨",sky:["#d4dcef","#8e9fc9"],ground:"#ece4d6",items:{
+    1:[["クロワッサン","🥐"],["リップ","💄"],["香水","🧴"],["マカロン","🍪"]],
+    2:[["バゲット","🥖"],["チーズ","🧀"],["ヒール","👠"],["ベレー帽","🧢"]],
+    3:[["バッグ","👜"],["ワイン","🍷"],["花束","💐"],["ネコのぬいぐるみ","🐈"]],
+    4:[["絵の具","🎨"],["トレンチコート","🧥"],["絵画","🖼️"],["ドレス","👗"]],
+    5:[["ショッピング袋","🛍️"],["シルクハット","🎩"],["ケーキ","🎂"],["自転車のおもちゃ","🚲"]]}},
+  {name:"ロンドン",mark:"🫖",sub:"☂️",sky:["#c9d3dc","#7f93a6"],ground:"#d9d4c8",items:{
+    1:[["スコーン","🍪"],["カップケーキ","🧁"],["切手","📮"],["カギ","🔑"]],
+    2:[["傘","☂️"],["マフラー","🧣"],["本","📚"],["紅茶缶","🥫"]],
+    3:[["ティーポット","🫖"],["コーギーのぬいぐるみ","🐕"],["サッカーボール","⚽"],["探偵の帽子","🎩"]],
+    4:[["2階建てバスの模型","🚌"],["ギター","🎸"],["コート","🧥"],["ウサギのぬいぐるみ","🐇"]],
+    5:[["王冠のおもちゃ","👑"],["お城の模型","🏰"],["観覧車のおもちゃ","🎡"],["おみやげ","🎁"]]}},
+  {name:"ニューヨーク",mark:"🗽",sub:"🏙️",sky:["#a9c1dc","#5d7fa8"],ground:"#d6d6d6",items:{
+    1:[["ホットドッグ","🌭"],["ドーナツ","🍩"],["チケット","🎟️"],["リンゴ","🍎"]],
+    2:[["ハンバーガー","🍔"],["キャップ","🧢"],["ベーグル","🥯"],["プレッツェル","🥨"]],
+    3:[["ピザ","🍕"],["スニーカー","👟"],["サックス","🎷"],["チーズケーキ","🍰"]],
+    4:[["紙袋","🛍️"],["ギター","🎸"],["テディベア","🧸"],["バスケットボール","🏀"]],
+    5:[["女神の置き物","🗽"],["タクシーのおもちゃ","🚕"],["ビルの模型","🏙️"],["おみやげ","🎁"]]}}
+];
+const SIZES=[[4,4],[5,4],[5,5],[6,5],[6,6],[7,6],[7,7],[8,7],[8,8]];
+const COLORS=["#ffb199","#9fdcf7","#c9e7a1","#f9b8d0","#ffe08a","#cbb8ef","#93d8cf","#ffcc8f","#f5a3a3","#b6d4fa","#dcedc1","#fcd5e3"];
+const $=id=>document.getElementById(id);
+const trunk=$("trunk"),tray=$("tray"),root=document.documentElement;
+let S={stage:1,score:0,W:4,H:4,items:[],grid:[],sel:null,time:0,total:1,running:false,ghost:null,popId:null};
+let cell=48,lastT=0,best=0;
+try{best=+localStorage.getItem("trunkBest")||0}catch(e){}
+
+const rnd=n=>Math.floor(Math.random()*n);
+const pick=a=>a[rnd(a.length)];
+const destOf=st=>DESTS[(st-1)%DESTS.length];
+function norm(c){const mx=Math.min(...c.map(p=>p[0])),my=Math.min(...c.map(p=>p[1]));return c.map(([x,y])=>[x-mx,y-my])}
+function rotate(c){const h=Math.max(...c.map(p=>p[1]));return norm(c.map(([x,y])=>[h-y,x]))}
+function anchorOf(c){const w=Math.max(...c.map(p=>p[0])),h=Math.max(...c.map(p=>p[1]));let b=c[0],bd=1e9;for(const p of c){const d=(p[0]-w/2)**2+(p[1]-h/2)**2;if(d<bd){bd=d;b=p}}return b}
+// where the illustration sits inside the shape: biggest square that fits, nearest the middle
+function artOf(c){
+  const has=new Set(c.map(p=>p[0]+","+p[1]));const w=Math.max(...c.map(p=>p[0])),h=Math.max(...c.map(p=>p[1]));
+  let best=null,bd=1e9;
+  for(const [x,y] of c){if(has.has((x+1)+","+y)&&has.has(x+","+(y+1))&&has.has((x+1)+","+(y+1))){const d=(x+.5-w/2)**2+(y+.5-h/2)**2;if(d<bd){bd=d;best={x:x+1,y:y+1,s:1.75}}}}
+  if(best)return best;
+  // straight or thin piece: sit between two neighbouring cells if possible
+  const a=anchorOf(c);
+  for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]])if(has.has((a[0]+dx)+","+(a[1]+dy)))return{x:a[0]+.5+dx/2,y:a[1]+.5+dy/2,s:1.2};
+  return{x:a[0]+.5,y:a[1]+.5,s:.95};
+}
+function finish(it){it.anchor=anchorOf(it.cells);it.art=artOf(it.cells)}
+
+function partition(W,H){
+  const own=new Array(W*H).fill(-1),pieces=[];
+  const order=[...Array(W*H).keys()].sort(()=>Math.random()-.5);
+  for(const start of order){
+    if(own[start]>=0)continue;
+    const target=pick([2,3,3,4,4,4,5,5]),id=pieces.length,p=[start];own[start]=id;
+    while(p.length<target){
+      const cand=[];
+      for(const i of p){const x=i%W,y=(i/W)|0;
+        [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=x+dx,ny=y+dy;if(nx>=0&&ny>=0&&nx<W&&ny<H&&own[ny*W+nx]<0)cand.push(ny*W+nx)})}
+      if(!cand.length)break;const n=pick(cand);own[n]=id;p.push(n);
+    }
+    pieces.push(p.map(i=>[i%W,(i/W)|0]));
+  }
+  return pieces;
+}
+
+function applyTheme(d){
+  root.style.setProperty("--sky1",d.sky[0]);root.style.setProperty("--sky2",d.sky[1]);root.style.setProperty("--ground",d.ground);
+  $("m1").textContent=d.mark;$("m2").textContent=d.sub;$("tag").textContent=d.name+"行き";
+}
+
+function newStage(){
+  const d=destOf(S.stage);applyTheme(d);
+  const [W,H]=SIZES[Math.min(S.stage-1,SIZES.length-1)];
+  S.W=W;S.H=H;S.grid=new Array(W*H).fill(-1);
+  const used=new Set();
+  S.items=partition(W,H).map((cells,i)=>{
+    let c=norm(cells);for(let r=rnd(4);r>0;r--)c=rotate(c);
+    const opts=d.items[c.length];let it=pick(opts),guard=0;
+    while(used.has(it[0])&&guard++<8)it=pick(opts);used.add(it[0]);
+    const o={id:i,cells:c,name:it[0],emoji:it[1],pos:null};finish(o);return o;
+  }).sort(()=>Math.random()-.5);
+  S.items.forEach((it,i)=>it.color=COLORS[i%COLORS.length]);
+  S.sel=S.items[0].id;S.ghost=null;
+  S.total=Math.round((14+S.items.length*4)*Math.max(.55,1-(S.stage-1)*.05));
+  S.time=S.total;
+  const lap=Math.floor((S.stage-1)/DESTS.length);
+  $("stg").textContent=(lap?lap+1+"周目 ":"")+"STAGE "+S.stage;
+  layout();render();
+}
+
+function layout(){
+  const area=$("stageArea");
+  const aw=area.clientWidth-30,ah=area.clientHeight-26-30;
+  cell=Math.max(28,Math.floor(Math.min(aw/S.W,ah/S.H,72)));
+  trunk.style.setProperty("--cell",cell+"px");
+  trunk.style.gridTemplateColumns=`repeat(${S.W},${cell}px)`;
+}
+addEventListener("resize",()=>{layout();render()});
+
+const byId=id=>S.items.find(i=>i.id===id);
+const cellsAt=(it,ox,oy)=>it.cells.map(([x,y])=>[x+ox,y+oy]);
+const fits=(it,ox,oy)=>cellsAt(it,ox,oy).every(([x,y])=>x>=0&&y>=0&&x<S.W&&y<S.H&&S.grid[y*S.W+x]<0);
+const artSpan=(it,ox,oy,cls)=>`<span class="${cls}" style="left:${(ox+it.art.x)*cell}px;top:${(oy+it.art.y)*cell}px;font-size:${Math.round(it.art.s*cell*.82)}px">${it.emoji}</span>`;
+
+function render(){
+  const {W,H,grid}=S;const g=S.ghost,gi=g?byId(S.sel):null;const gset=new Map();
+  if(g&&gi&&!gi.pos)for(const [x,y] of cellsAt(gi,g.ox,g.oy))if(x>=0&&y>=0&&x<W&&y<H)gset.set(y*W+x,g.ok);
+  let html="";
+  for(let i=0;i<W*H;i++){
+    const o=grid[i];let cls="cell",st="";
+    if(o>=0){const it=byId(o),x=i%W,y=(i/W)|0;cls+=" p";
+      const same=(dx,dy)=>{const nx=x+dx,ny=y+dy;return nx>=0&&ny>=0&&nx<W&&ny<H&&grid[ny*W+nx]===o};
+      const t=!same(0,-1),r=!same(1,0),b=!same(0,1),l=!same(-1,0);
+      const sh=[];if(t)sh.push("inset 0 3px 0 rgba(255,255,255,.6)");if(l)sh.push("inset 3px 0 0 rgba(255,255,255,.4)");if(b)sh.push("inset 0 -4px 0 rgba(0,0,0,.22)");if(r)sh.push("inset -3px 0 0 rgba(0,0,0,.16)");
+      const R=Math.round(cell*.24)+"px";
+      st=`background-color:${it.color};box-shadow:${sh.join(",")||"none"};border-radius:${t&&l?R:0} ${t&&r?R:0} ${b&&r?R:0} ${b&&l?R:0}`;}
+    if(gset.has(i))cls+=gset.get(i)?" g-ok":" g-bad";
+    html+=`<div class="${cls}" style="${st}"></div>`;
+  }
+  let art="";
+  for(const it of S.items)if(it.pos)art+=artSpan(it,it.pos[0],it.pos[1],it.id===S.popId?"pop":"");
+  if(g&&gi&&!gi.pos)art+=artSpan(gi,g.ox,g.oy,"ghost");
+  trunk.innerHTML=html+`<div class="art">${art}</div>`;
+  S.popId=null;
+  tray.innerHTML=S.items.filter(it=>!it.pos).map(it=>{
+    const w=Math.max(...it.cells.map(c=>c[0]))+1,h=Math.max(...it.cells.map(c=>c[1]))+1;
+    const set=new Set(it.cells.map(c=>c[1]*w+c[0]));let m="";
+    for(let i=0;i<w*h;i++)m+=`<span style="background:${set.has(i)?"var(--ink)":"transparent"}"></span>`;
+    return `<button class="item${it.id===S.sel?" sel":""}" data-id="${it.id}" aria-label="${it.name}" style="background:${it.color}"><span class="em">${it.emoji}</span><div class="mini" style="grid-template-columns:repeat(${w},8px)">${m}</div><small>${it.name}</small></button>`;
+  }).join("");
+  $("scr").textContent=S.score+"点";
+}
+
+tray.addEventListener("click",e=>{const b=e.target.closest(".item");if(!b)return;S.sel=+b.dataset.id;S.ghost=null;render()});
+function doRotate(){const it=byId(S.sel);if(!it||it.pos)return;it.cells=rotate(it.cells);finish(it);
+  if(S.ghost)setGhost(S.ghost.c);render();blip(520,.04)}
+$("rot").addEventListener("click",doRotate);
+addEventListener("keydown",e=>{if(e.key==="r"||e.key==="R"||e.key===" "){e.preventDefault();doRotate()}});
+
+function cellAt(e){const r=trunk.getBoundingClientRect();const x=Math.floor((e.clientX-r.left)/cell),y=Math.floor((e.clientY-r.top)/cell);
+  if(x<0||y<0||x>=S.W||y>=S.H)return null;return{x,y}}
+function setGhost(c){const it=byId(S.sel);if(!it||it.pos||!c){S.ghost=null;return}
+  const ox=c.x-it.anchor[0],oy=c.y-it.anchor[1];S.ghost={c,ox,oy,ok:fits(it,ox,oy)}}
+
+let drag=null;
+trunk.addEventListener("pointerdown",e=>{
+  if(!S.running)return;const c=cellAt(e);if(!c)return;
+  try{trunk.setPointerCapture(e.pointerId)}catch(_){}
+  const own=S.grid[c.y*S.W+c.x];
+  drag={start:c,moved:false,pickup:own>=0?own:null};
+  if(own<0){setGhost(c);render()}
+});
+trunk.addEventListener("pointermove",e=>{
+  if(!S.running)return;const c=cellAt(e);
+  if(drag){if(c&&(c.x!==drag.start.x||c.y!==drag.start.y))drag.moved=true;if(drag.pickup!=null&&!drag.moved)return}
+  else if(e.pointerType!=="mouse")return;
+  const k=c?c.x+","+c.y:"",pk=S.ghost?S.ghost.c.x+","+S.ghost.c.y:"";
+  if(k!==pk){setGhost(c);render()}
+});
+trunk.addEventListener("pointerup",e=>{
+  if(!drag||!S.running){drag=null;return}
+  if(drag.pickup!=null&&!drag.moved)removeItem(byId(drag.pickup));
+  else if(S.ghost&&S.ghost.ok)placeItem(byId(S.sel),S.ghost.ox,S.ghost.oy);
+  else if(S.ghost){blip(140,.08);buzz(30)}
+  drag=null;if(e.pointerType!=="mouse"||!S.running)S.ghost=null;else setGhost(cellAt(e));render();
+});
+trunk.addEventListener("pointerleave",()=>{if(!drag&&S.ghost){S.ghost=null;render()}});
+trunk.addEventListener("pointercancel",()=>{drag=null;S.ghost=null;render()});
+
+function placeItem(it,ox,oy){
+  it.pos=[ox,oy];for(const [x,y] of cellsAt(it,ox,oy))S.grid[y*S.W+x]=it.id;
+  S.score+=it.cells.length*10;S.popId=it.id;blip(660+it.cells.length*60,.06);buzz(12);
+  const next=S.items.find(i=>!i.pos);S.sel=next?next.id:null;S.ghost=null;
+  if(!next)clearStage();
+}
+function removeItem(it){
+  for(const [x,y] of cellsAt(it,it.pos[0],it.pos[1]))S.grid[y*S.W+x]=-1;
+  it.pos=null;S.score=Math.max(0,S.score-it.cells.length*10);S.sel=it.id;blip(300,.05);
+}
+
+function clearStage(){
+  S.running=false;const bonus=Math.ceil(S.time)*5;S.score+=bonus;
+  $("hint").textContent=`閉まった！ 残り時間ボーナス +${bonus}点`;
+  const lid=$("lid"),shell=$("shell");lid.classList.add("close");shell.classList.add("thud");
+  setTimeout(()=>{blip(180,.12);buzz(40)},450);
+  setTimeout(()=>{
+    const nd=destOf(S.stage+1);$("flyMark").textContent=nd.mark;$("flyName").textContent=nd.name;$("fly").hidden=false;
+    const p=$("fly").querySelector(".plane");p.style.animation="none";p.offsetWidth;p.style.animation="";
+    blip(440,.1);setTimeout(()=>blip(660,.12),120);
+  },1000);
+  setTimeout(()=>{
+    lid.classList.remove("close");shell.classList.remove("thud");$("fly").hidden=true;
+    S.stage++;newStage();$("hint").textContent="荷物を選んでトランクをタップ／なぞって置く";S.running=true;lastT=performance.now();
+  },2500);
+}
+
+function gameOver(){
+  S.running=false;S.ghost=null;render();
+  if(S.score>best){best=S.score;try{localStorage.setItem("trunkBest",best)}catch(e){}}
+  const d=destOf(S.stage),cleared=S.stage-1;
+  $("endStage").textContent=`${d.name}で時間切れ（${cleared}か所クリア）`;
+  $("route").innerHTML=DESTS.slice(0,Math.min(S.stage,DESTS.length)).map((x,i)=>`<span class="${i<cleared?"":"no"}">${x.mark} ${x.name}</span>`).join("");
+  $("endScore").textContent=S.score+"点";
+  $("endBest").textContent="ベスト "+best+"点";
+  const txt=`トランク詰めで ${cleared}か所 旅して ${d.name} で時間切れ… ${S.score}点 🧳 #トランク詰め`;
+  $("share").href="https://twitter.com/intent/tweet?text="+encodeURIComponent(txt)+"&url="+encodeURIComponent("https://nneeoo0902.github.io/trunk/");
+  $("endOv").hidden=false;
+}
+
+function tick(t){
+  if(S.running){const dt=Math.min(.1,(t-lastT)/1000);S.time-=dt;if(S.time<=0){S.time=0;gameOver()}}
+  lastT=t;const f=S.time/S.total;$("bar").style.transform=`scaleX(${f})`;$("timer").classList.toggle("low",f<.25);
+  requestAnimationFrame(tick);
+}
+
+let ac=null;
+function blip(freq,dur){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();
+  o.type="square";o.frequency.value=freq;g.gain.setValueAtTime(.05,ac.currentTime);g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+dur);
+  o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+dur)}catch(e){}}
+function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
+
+function start(){S.stage=1;S.score=0;newStage();$("startOv").hidden=true;$("endOv").hidden=true;S.running=true;lastT=performance.now();blip(880,.08)}
+$("startBtn").addEventListener("click",start);
+$("retry").addEventListener("click",start);
+
+// half-packed sample behind the start screen
+newStage();
+for(const it of S.items.slice(0,Math.floor(S.items.length/2))){
+  outer:for(let y=0;y<S.H;y++)for(let x=0;x<S.W;x++)if(fits(it,x,y)){it.pos=[x,y];for(const [cx,cy] of cellsAt(it,x,y))S.grid[cy*S.W+cx]=it.id;break outer}
+}
+S.sel=(S.items.find(i=>!i.pos)||{}).id;render();
+requestAnimationFrame(tick);
+</script>
+
+</body>
+</html>
