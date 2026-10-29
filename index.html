@@ -76,6 +76,10 @@ header{display:flex;align-items:center;gap:8px}
 .item.sel{border-color:var(--ink);transform:translateY(-4px)}
 .item .em{font-size:38px;line-height:1.05;filter:var(--sticker)}
 .item small{font-size:11px;font-weight:800;white-space:nowrap}
+.item{position:relative}
+.frag{position:absolute;top:-8px;right:-6px;font-style:normal;font-size:10px;font-weight:800;color:#fff;background:#e23d3d;border:2px solid var(--ink);border-radius:4px;padding:1px 5px;transform:rotate(6deg);white-space:nowrap}
+.rot.lock{background:#e23d3d}
+.rot.lock svg{opacity:.35}
 .item:focus-visible,.btn:focus-visible,.rot:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .mini{display:grid;gap:1px}
 .mini span{width:8px;height:8px;border-radius:2px}
@@ -126,7 +130,7 @@ header{display:flex;align-items:center;gap:8px}
   <div class="dock">
     <div class="tray" id="tray"></div>
     <button class="rot" id="rot" aria-label="回転">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>回転
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg><span id="rotLabel">回転</span>
     </button>
   </div>
 </div>
@@ -146,6 +150,8 @@ header{display:flex;align-items:center;gap:8px}
       <li>下から荷物を選ぶ</li>
       <li>トランクをタップ（なぞる）して置く</li>
       <li>置いた荷物をタップすると戻せる</li>
+      <li>荷物を置くたびに時間が少し増える</li>
+      <li>「ワレモノ」の荷物は回転できない</li>
     </ol>
     <button class="btn" id="startBtn">出発する</button>
   </div>
@@ -304,15 +310,23 @@ function newStage(){
   const [W,H]=SIZES[Math.min(S.stage-1,SIZES.length-1)];
   S.W=W;S.H=H;S.grid=new Array(W*H).fill(-1);
   const used=new Set();
-  S.items=partition(W,H).map((cells,i)=>{
-    let c=norm(cells);for(let r=rnd(4);r>0;r--)c=rotate(c);
+  const parts=partition(W,H);
+  // ワレモノ: none for the first 2 stages, then a growing share (max 60%)
+  const nFragile=S.stage<3?0:Math.min(Math.ceil(parts.length*.6),Math.round(parts.length*(S.stage-2)*.08)+1);
+  const fragileIdx=new Set([...parts.keys()].sort(()=>Math.random()-.5).slice(0,nFragile));
+  S.items=parts.map((cells,i)=>{
+    const fragile=fragileIdx.has(i);
+    let c=norm(cells);if(!fragile)for(let r=rnd(4);r>0;r--)c=rotate(c);
     const opts=d.items[c.length];let it=pick(opts),guard=0;
     while(used.has(it[0])&&guard++<8)it=pick(opts);used.add(it[0]);
-    const o={id:i,cells:c,name:it[0],emoji:it[1],pos:null};finish(o);return o;
+    const o={id:i,cells:c,name:it[0],emoji:it[1],pos:null,fragile,bonused:false};finish(o);return o;
   }).sort(()=>Math.random()-.5);
   S.items.forEach((it,i)=>it.color=COLORS[i%COLORS.length]);
   S.sel=S.items[0].id;S.ghost=null;
-  S.total=Math.round((14+S.items.length*4)*Math.max(.55,1-(S.stage-1)*.05));
+  // time per item shrinks each stage; placing an item gives back a little time
+  const per=Math.max(1.2,5-(S.stage-1)*.35);
+  S.total=Math.round(8+S.items.length*per);
+  S.bonus=Math.max(.5,2-(S.stage-1)*.15);
   S.time=S.total;
   const lap=Math.floor((S.stage-1)/DESTS.length);
   $("stg").textContent=(lap?lap+1+"周目 ":"")+"STAGE "+S.stage;
@@ -357,13 +371,16 @@ function render(){
     const w=Math.max(...it.cells.map(c=>c[0]))+1,h=Math.max(...it.cells.map(c=>c[1]))+1;
     const set=new Set(it.cells.map(c=>c[1]*w+c[0]));let m="";
     for(let i=0;i<w*h;i++)m+=`<span style="background:${set.has(i)?"var(--ink)":"transparent"}"></span>`;
-    return `<button class="item${it.id===S.sel?" sel":""}" data-id="${it.id}" aria-label="${it.name}" style="background:${it.color}"><span class="em">${it.emoji}</span><div class="mini" style="grid-template-columns:repeat(${w},8px)">${m}</div><small>${it.name}</small></button>`;
+    return `<button class="item${it.id===S.sel?" sel":""}" data-id="${it.id}" aria-label="${it.name}" style="background:${it.color}"><span class="em">${it.emoji}</span><div class="mini" style="grid-template-columns:repeat(${w},8px)">${m}</div><small>${it.name}</small>${it.fragile?'<i class="frag">ワレモノ</i>':""}</button>`;
   }).join("");
   $("scr").textContent=S.score+"点";
+  const si=byId(S.sel),fx=!!(si&&si.fragile&&!si.pos);
+  $("rot").classList.toggle("lock",fx);$("rotLabel").textContent=fx?"固定":"回転";
 }
 
 tray.addEventListener("click",e=>{const b=e.target.closest(".item");if(!b)return;S.sel=+b.dataset.id;S.ghost=null;render()});
-function doRotate(){const it=byId(S.sel);if(!it||it.pos)return;it.cells=rotate(it.cells);finish(it);
+function doRotate(){const it=byId(S.sel);if(!it||it.pos)return;
+  if(it.fragile){flash("ワレモノ注意：この荷物は向きを変えられません");blip(140,.08);buzz(30);return}it.cells=rotate(it.cells);finish(it);
   if(S.ghost)setGhost(S.ghost.c);render();blip(520,.04)}
 $("rot").addEventListener("pointerdown",e=>{e.preventDefault();doRotate()});
 $("rot").addEventListener("click",e=>{if(e.detail===0)doRotate()});
@@ -371,6 +388,7 @@ document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false});
 document.addEventListener("gesturestart",e=>e.preventDefault());
 addEventListener("keydown",e=>{if(e.key==="r"||e.key==="R"||e.key===" "){e.preventDefault();doRotate()}});
 
+let flashT=0;function flash(t){const el=$("hint");el.textContent=t;clearTimeout(flashT);flashT=setTimeout(()=>{if(S.running)el.textContent="荷物を選んでトランクをタップ／なぞって置く"},1400)}
 function cellAt(e){const r=trunk.getBoundingClientRect();const x=Math.floor((e.clientX-r.left)/cell),y=Math.floor((e.clientY-r.top)/cell);
   if(x<0||y<0||x>=S.W||y>=S.H)return null;return{x,y}}
 function setGhost(c){const it=byId(S.sel);if(!it||it.pos||!c){S.ghost=null;return}
@@ -403,7 +421,8 @@ trunk.addEventListener("pointercancel",()=>{drag=null;S.ghost=null;render()});
 
 function placeItem(it,ox,oy){
   it.pos=[ox,oy];for(const [x,y] of cellsAt(it,ox,oy))S.grid[y*S.W+x]=it.id;
-  S.score+=it.cells.length*10;S.popId=it.id;blip(660+it.cells.length*60,.06);buzz(12);
+  S.score+=it.cells.length*10;S.popId=it.id;
+  if(!it.bonused){it.bonused=true;S.time=Math.min(S.total,S.time+S.bonus);flash(`+${S.bonus.toFixed(1).replace(".0","")}秒`)}blip(660+it.cells.length*60,.06);buzz(12);
   const next=S.items.find(i=>!i.pos);S.sel=next?next.id:null;S.ghost=null;
   if(!next)clearStage();
 }
